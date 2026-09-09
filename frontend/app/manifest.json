@@ -1,0 +1,9 @@
+{
+  "name": "DailyTracker",
+  "short_name": "DailyTracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f6fd",
+  "theme_color": "#1f1c2e",
+  "icons": []
+}

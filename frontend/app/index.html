@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DailyTracker</title>
+
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1f1c2e">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- =======================================================
+     LOGIN SCREEN (shown first; hides once logged in)
+     ======================================================= -->
+<div class="login-app" id="login-app">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <span class="text-title">DailyTracker</span>
+    </div>
+    <p class="text-small" style="margin: 4px 0 28px;">Sign in with the account your admin created for you.</p>
+
+    <div class="form-group">
+      <p class="text-small" style="margin-bottom:8px">Email / Username</p>
+      <input type="text" class="input-field" id="login-username" placeholder="you@company.com" autocomplete="username">
+    </div>
+    <div class="form-group" style="margin-bottom: 8px;">
+      <p class="text-small" style="margin-bottom:8px">Password</p>
+      <input type="password" class="input-field" id="login-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <p class="field-error" id="login-error">Please enter both your username and password.</p>
+
+    <button class="btn-primary" id="btn-login" style="width:100%; justify-content:center; margin-top:16px;">Log In</button>
+  </div>
+</div>
+
+<!-- FORCE-LOGOUT-OTHER-DEVICE MODAL (Spec §8.1) -->
+<div class="overlay" id="modal-force-logout">
+  <div class="modal">
+    <p class="text-title" style="margin-bottom: 8px;">Already logged in elsewhere</p>
+    <p class="text-small" style="margin-bottom: 24px; line-height: 1.5;">This account is currently active on another device. You can log out that device and continue here, or cancel and keep the other session active.</p>
+    <div style="display:flex; gap:12px; justify-content:flex-end;">
+      <button class="btn-secondary" id="btn-cancel-force-logout">Cancel</button>
+      <button class="btn-primary" id="btn-confirm-force-logout" style="background:var(--accent-error); border-color:var(--accent-error);">Force Logout &amp; Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- =======================================================
+     EMPLOYEE APP (default view)
+     ======================================================= -->
+<div class="app" id="employee-app">
+
+  <!-- Responsive Sidebar -->
+  <nav class="sidebar">
+    <div class="brand-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <span class="text-title">DailyTracker</span>
+    </div>
+
+    <button class="nav-item active" data-tab="today" title="Today">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+      <span class="nav-text">Today</span>
+    </button>
+    <button class="nav-item" data-tab="history-months" title="History">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      <span class="nav-text">History</span>
+    </button>
+    <button class="nav-item" data-tab="notices" title="Notices">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span class="nav-text">Notices</span>
+    </button>
+    <button class="nav-item" data-tab="profile" title="Profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      <span class="nav-text">Profile</span>
+    </button>
+
+    <button class="nav-item admin-nav-item" id="btn-open-admin" title="Admin Panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"></path></svg>
+      <span class="nav-text">Admin</span>
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div class="greeting">
+        <p class="text-title" id="greeting-text">Emon Hasan</p>
+        <p class="text-small" id="greeting-date">Tuesday, 8 September</p>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn mode-switch" aria-label="Toggle Theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="moon-icon">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button class="icon-btn" aria-label="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- TODAY SCREEN -->
+    <div class="screen active" id="screen-today">
+      <div class="content-wrapper">
+        <div class="status-card state-waiting" id="status-card">
+          <div class="status-info">
+            <p class="text-body" id="status-label" style="font-weight: 700; font-size: 18px;">Not checked in</p>
+            <p class="text-small" id="status-sub" style="margin-top: 8px;">Tap check in to start your day</p>
+          </div>
+          <div class="timer-wrapper">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle class="progress-bg" cx="60" cy="60" r="54"/>
+              <circle class="progress-ring" id="progress-ring" cx="60" cy="60" r="54"/>
+            </svg>
+            <p class="text-timer" id="timer">00:00:00</p>
+          </div>
+        </div>
+
+        <div class="actions-grid">
+          <button class="action-btn" id="btn-checkin">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+            <span class="text-body" style="font-weight:700">Check in</span>
+          </button>
+          <button class="action-btn" id="btn-break" disabled>
+            <svg id="break-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+            <span class="text-body" id="break-label" style="font-weight:700">Break</span>
+          </button>
+          <button class="action-btn" id="btn-checkout" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span class="text-body" style="font-weight:700">Check out</span>
+          </button>
+        </div>
+
+        <p class="text-section">Today's Logs</p>
+        <div id="log-rows"></div>
+        <div id="notes-box" style="display:none; margin-top: 24px;">
+          <p class="text-section">Notes</p>
+          <div id="notes-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY: MONTH LIST -->
+    <div class="screen" id="screen-history-months">
+      <div class="content-wrapper">
+        <p class="text-section">My History</p>
+      </div>
+    </div>
+
+    <!-- HISTORY: DAY LIST -->
+    <div class="screen" id="screen-history-days">
+      <div class="content-wrapper">
+        <button class="back-btn" id="btn-back-to-months">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          <span id="month-title">Month</span>
+        </button>
+        <div id="day-list"></div>
+      </div>
+    </div>
+
+    <!-- HISTORY: DAY DETAIL -->
+    <div class="screen" id="screen-day-detail">
+      <div class="content-wrapper">
+        <button class="back-btn" id="btn-back-to-days">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          <span id="day-title">Day</span>
+        </button>
+
+        <div id="day-flag-list"></div>
+
+        <div class="detail-summary">
+          <p class="total" id="day-total">7h 42m</p>
+          <p class="text-small">Total time in office</p>
+        </div>
+
+        <p class="text-section">Timeline</p>
+        <div id="day-timeline"></div>
+
+        <div id="day-notes-box" style="display:none; margin-top: 24px;">
+          <p class="text-section">Notes</p>
+          <div id="day-notes-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTICES SCREEN -->
+    <div class="screen" id="screen-notices">
+      <div class="content-wrapper">
+        <p class="text-section">Notices</p>
+      </div>
+    </div>
+
+    <!-- PROFILE SCREEN -->
+    <div class="screen" id="screen-profile">
+      <div class="content-wrapper">
+        <div class="profile-header">
+          <div class="avatar-wrap">
+            <div class="avatar" id="profile-avatar">EH</div>
+            <button class="avatar-edit-btn" id="btn-edit-avatar" aria-label="Change profile picture" title="Change profile picture">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            </button>
+            <input type="file" id="avatar-file-input" accept="image/*" style="display:none;">
+          </div>
+          <p class="text-title">Emon Hasan</p>
+          <p class="text-small" style="margin-top:4px;">Automation team</p>
+        </div>
+        <div class="list-row"><span class="text-small">Duty start time</span><span class="text-body">9:30 AM</span></div>
+        <div class="list-row"><span class="text-small">Employee ID</span><span class="text-body">BX-014</span></div>
+
+        <button class="btn-secondary" id="btn-logout" style="width:100%; justify-content:center; margin-top:24px; border-color:var(--accent-error); color:var(--accent-error);">Log Out</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BREAK MODAL -->
+<div class="overlay" id="overlay-break">
+  <div class="sheet">
+    <div class="drag-handle"></div>
+    <p class="text-title">Take a break</p>
+    <p class="text-small" style="margin-top: 4px;">Choose a reason</p>
+
+    <div class="reason-options">
+      <button class="sheet-btn" id="reason-lunch">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+        Lunch
+      </button>
+      <button class="sheet-btn" id="reason-other">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        Other
+      </button>
+    </div>
+
+    <p class="text-small" id="lunch-used-note" style="display:none; margin: -4px 0 12px; color: var(--accent-error); font-weight:600;">You've already used your lunch break today.</p>
+
+    <div id="other-note-wrap" style="display:none;">
+      <textarea class="note-field" id="other-note" placeholder="What's the reason? (required)"></textarea>
+      <p class="field-error" id="other-note-error">Please add a note for this break.</p>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="sheet-btn" style="flex-direction: row; justify-content: center" id="break-cancel">Cancel</button>
+      <button class="sheet-btn primary" id="break-confirm" style="display:none;">Start break</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div class="overlay" id="overlay-checkout">
+  <div class="sheet">
+    <div class="drag-handle"></div>
+    <p class="text-title">Check out</p>
+    <p class="text-small" style="margin-top:4px;">Add an optional note before leaving</p>
+    <textarea class="note-field" id="checkout-note" placeholder="E.g. leaving early for an appointment..."></textarea>
+    <div class="sheet-actions">
+      <button class="sheet-btn" style="flex-direction: row; justify-content: center" id="checkout-cancel">Cancel</button>
+      <button class="sheet-btn primary" id="checkout-confirm">Confirm checkout</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- =======================================================
+     ADMIN PANEL (hidden by default, toggled via JS)
+     ======================================================= -->
+<div class="app admin-app" id="admin-app" style="display:none;">
+
+  <!-- ================= SIDEBAR ================= -->
+  <nav class="sidebar admin-sidebar">
+    <div class="brand-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <span class="text-title">Admin Panel</span>
+    </div>
+
+    <button class="nav-item back-to-employee-item" id="btn-back-to-employee">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      <span class="nav-text">Back to My View</span>
+    </button>
+
+    <div class="sidebar-divider"></div>
+
+    <button class="nav-item active" data-admin-tab="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect>
+      </svg>
+      <span class="nav-text">Live Dashboard</span>
+    </button>
+    <button class="nav-item" data-admin-tab="staff">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+      <span class="nav-text">Staff & Accounts</span>
+    </button>
+    <button class="nav-item" data-admin-tab="reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>
+      </svg>
+      <span class="nav-text">Reports & History</span>
+    </button>
+    <button class="nav-item" data-admin-tab="broadcast">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      <span class="nav-text">Broadcast Notices</span>
+    </button>
+    <button class="nav-item" data-admin-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+      <span class="nav-text">Global Settings</span>
+    </button>
+  </nav>
+
+  <!-- ================= MAIN CONTENT ================= -->
+  <div class="main-content">
+
+    <div class="topbar">
+      <div>
+        <p class="text-title" id="admin-screen-title">Live Dashboard</p>
+        <p class="text-small" id="admin-screen-sub">Real-time attendance monitor</p>
+      </div>
+      <button class="icon-btn mode-switch" aria-label="Toggle Theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="moon-icon">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- 1. DASHBOARD SCREEN -->
+    <div class="admin-screen active" id="admin-screen-dashboard">
+      <div class="summary-row">
+        <div class="summary-card" style="border-left: 4px solid var(--accent-success)">
+          <p class="number" style="color:var(--accent-success)">3</p>
+          <p class="text-small" style="font-weight:700">Present / Working</p>
+        </div>
+        <div class="summary-card" style="border-left: 4px solid var(--accent-warning)">
+          <p class="number" style="color:var(--accent-warning)">1</p>
+          <p class="text-small" style="font-weight:700">On Break</p>
+        </div>
+        <div class="summary-card" style="border-left: 4px solid var(--text-muted)">
+          <p class="number" style="color:var(--text-muted)">2</p>
+          <p class="text-small" style="font-weight:700">Absent / Not In Yet</p>
+        </div>
+      </div>
+
+      <p class="text-section">Live Status Cards</p>
+      <div class="grid-cards" id="dashboard-grid"></div>
+    </div>
+
+    <!-- 2. STAFF & ACCOUNTS SCREEN -->
+    <div class="admin-screen" id="admin-screen-staff">
+      <div class="timeline-box" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:32px">
+        <div>
+          <p class="text-title" id="staff-count-title">Total 6 Employees</p>
+          <p class="text-small">Manage accounts and individual settings</p>
+        </div>
+        <button class="btn-primary" id="btn-add-employee">Add Employee</button>
+      </div>
+      <div id="staff-list"></div>
+    </div>
+
+    <!-- Create Employee Panel -->
+    <div class="admin-screen" id="admin-screen-staff-create">
+      <button class="back-btn" id="btn-back-staff-create">Back to Staff List</button>
+      <div class="timeline-box" style="max-width: 600px;">
+        <p class="text-section">Create New Account</p>
+        <div class="form-group">
+          <p class="text-small" style="margin-bottom:8px">Full Name</p>
+          <input type="text" class="input-field" id="create-emp-name" placeholder="John Doe">
+        </div>
+        <div class="form-group">
+          <p class="text-small" style="margin-bottom:8px">Email / Username</p>
+          <input type="text" class="input-field" id="create-emp-email" placeholder="john@company.com">
+        </div>
+                <div class="form-group">
+          <p class="text-small" style="margin-bottom:8px">Temporary Password</p>
+          <input type="password" class="input-field" id="create-emp-password" placeholder="••••••••">
+        </div>
+        <p class="field-error" id="create-emp-error">Something went wrong.</p>
+        <button class="btn-primary" style="margin-top: 16px;" id="btn-create-employee-submit">Create Account</button>
+      </div>
+    </div>
+
+    <!-- Individual Employee Profile Manage -->
+    <div class="admin-screen" id="admin-screen-staff-manage">
+      <button class="back-btn" id="btn-back-staff-manage">Back</button>
+      <div class="two-col">
+        <div class="timeline-box">
+          <div style="display:flex; align-items:center; gap:16px; margin-bottom: 32px;">
+            <div class="avatar-wrap" style="width:64px; height:64px;">
+              <div class="emp-avatar" id="admin-profile-avatar" style="width:64px; height:64px; background:var(--surface-muted); font-size:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; border: 1px solid var(--border-soft);">EH</div>
+              <button class="avatar-edit-btn avatar-edit-btn-sm" id="btn-edit-admin-avatar" aria-label="Change profile picture" title="Change profile picture">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              </button>
+              <input type="file" id="admin-avatar-file-input" accept="image/*" style="display:none;">
+            </div>
+            <div>
+              <p class="text-title" id="manage-emp-name-display">Emon Hasan</p>
+              <p class="text-small" id="manage-emp-email-display">emon@company.com</p>
+            </div>
+          </div>
+          <p class="text-section">Edit Profile</p>
+          <div class="form-group">
+            <p class="text-small" style="margin-bottom:8px">Full Name</p>
+            <input type="text" class="input-field" id="manage-emp-name-input" value="Emon Hasan">
+          </div>
+          <button class="btn-primary" id="btn-update-employee-profile">Update Profile</button>
+        </div>
+
+        <div class="timeline-box">
+          <p class="text-section">Individual Overrides</p>
+          <div class="form-group">
+            <p class="text-small" style="margin-bottom:8px">Duty Start Time (Override)</p>
+            <input type="time" class="input-field" id="manage-emp-duty-override">
+          </div>
+          <p class="text-small" style="margin-bottom:16px; line-height: 1.5;">Leave blank to use Global Default rules.</p>
+          <button class="btn-primary" style="margin-bottom: 40px" id="btn-save-duty-override">Save Override</button>
+
+          <p class="text-section" style="color:var(--accent-error)">Security</p>
+          <button class="btn-secondary" id="btn-open-reset-password" style="border-color:var(--accent-error); color:var(--accent-error); margin-bottom:12px;">Reset Password</button>
+          <br>
+          <button class="btn-secondary" id="btn-deactivate-account" style="border-color:var(--accent-warning); color:var(--accent-warning); margin-bottom:12px;">Deactivate Account</button>
+          <br>
+          <button class="btn-secondary" id="btn-delete-account" style="border-color:var(--accent-error); color:var(--accent-error); background:transparent;">Delete Account</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. REPORTS SCREEN -->
+    <div class="admin-screen" id="admin-screen-reports-emp">
+      <div class="report-mode-tabs">
+        <button class="mode-tab active" id="tab-by-employee">By Employee</button>
+        <button class="mode-tab" id="tab-by-date">By Date</button>
+      </div>
+
+      <div class="filter-bar">
+        <div style="display:flex; align-items:center; flex:1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px; color:var(--text-muted); margin-left:16px"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" class="input-field" id="search-emp" placeholder="Search employee by name...">
+        </div>
+      </div>
+
+      <div id="report-emp-list"></div>
+    </div>
+
+    <div class="admin-screen" id="admin-screen-reports-date-months">
+      <button class="back-btn" id="btn-back-date-months">Back</button>
+      <p class="text-section">Select Month</p>
+      <div id="report-date-months-list"></div>
+    </div>
+
+    <div class="admin-screen" id="admin-screen-reports-date-days">
+      <button class="back-btn" id="btn-back-date-days">Back to Months</button>
+      <p class="text-section" id="date-days-header">Month</p>
+      <div id="report-date-days-list"></div>
+    </div>
+
+    <div class="admin-screen" id="admin-screen-reports-date-employees">
+      <button class="back-btn" id="btn-back-date-employees">Back to Days</button>
+      <p class="text-section" id="date-employees-header">Day</p>
+      <div id="report-date-employees-list"></div>
+    </div>
+
+    <div class="admin-screen" id="admin-screen-reports-months">
+      <button class="back-btn" id="btn-back-reports-months">Back to Employees</button>
+      <p class="text-section" id="month-list-header">History</p>
+      <div id="report-months-list"></div>
+    </div>
+
+    <div class="admin-screen" id="admin-screen-reports-days">
+      <button class="back-btn" id="btn-back-reports-days">Back to Months</button>
+      <p class="text-section">September 2026</p>
+      <div id="report-days-list"></div>
+    </div>
+
+    <div class="admin-screen" id="admin-screen-reports-detail">
+      <button class="back-btn" id="btn-back-from-detail">Back</button>
+
+      <div class="timeline-box">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
+          <div>
+            <p class="text-title" id="detail-date-header">8 Sep, Thursday</p>
+            <p class="text-title" style="color:var(--text-muted); margin-top:4px">Total: <span style="color:var(--text-main)">7h 42m</span></p>
+          </div>
+          <button class="btn-secondary" id="btn-open-edit-modal">Edit Record</button>
+        </div>
+
+        <p class="text-section">Audit Timeline</p>
+        <div id="detail-timeline"></div>
+
+        <div class="audit-log">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px; flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          <div>
+            <p style="margin-bottom: 4px;"><strong>Admin Edit Log:</strong></p>
+            <p style="font-weight: 500;">Check-out time manually adjusted by Admin on 9 Sep. Original: Auto-checkout at 22:00.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. BROADCAST NOTICES -->
+    <div class="admin-screen" id="admin-screen-broadcast">
+      <div class="two-col">
+        <div class="timeline-box" style="margin-bottom:0">
+          <p class="text-section">Publish New Notice</p>
+          <div class="form-group">
+            <p class="text-small" style="margin-bottom:8px">Notice Title</p>
+            <input type="text" class="input-field" placeholder="E.g. Server Maintenance">
+          </div>
+          <div class="form-group">
+            <p class="text-small" style="margin-bottom:8px">Details</p>
+            <textarea class="input-field" style="min-height: 80px; resize:vertical" placeholder="Write notice body..."></textarea>
+          </div>
+          <div class="form-group">
+            <p class="text-small" style="margin-bottom:8px">Active Duration (Expiry)</p>
+            <select class="input-field">
+              <option>Valid for 24 Hours</option>
+              <option>Valid for 48 Hours</option>
+              <option>Valid for 1 Week</option>
+            </select>
+          </div>
+          <button class="btn-primary" style="width:100%; justify-content:center">Publish to all Employees</button>
+        </div>
+
+        <div>
+          <p class="text-section">Active Notices</p>
+          <div class="list-row">
+            <div style="display:flex; flex-direction:column; gap:4px">
+              <p class="text-body" style="font-weight:700">Office closed Thursday</p>
+              <p class="text-small">Expires in 2 days</p>
+            </div>
+            <button class="btn-secondary" style="border-color:var(--accent-error); color:var(--accent-error)">Revoke</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. GLOBAL SETTINGS -->
+    <div class="admin-screen" id="admin-screen-settings">
+      <div class="two-col">
+        <div style="display:flex; flex-direction:column; gap:24px;" class="settings-work-rules">
+          <div class="timeline-box" style="margin:0">
+            <p class="text-section">Global Work Rules</p>
+            <div class="form-group">
+              <p class="text-small" style="margin-bottom:8px">Global Duty Start Time</p>
+              <input type="time" class="input-field" value="09:30">
+            </div>
+            <button class="btn-primary" style="width:100%; justify-content:center;">Save Global Rules</button>
+          </div>
+        </div>
+
+        <div class="timeline-box settings-holiday" style="margin:0">
+          <p class="text-section">Holiday Configuration</p>
+          <div class="form-group">
+            <p class="text-small" style="margin-bottom:8px">Weekly Holidays</p>
+            <div class="checkbox-group">
+              <label class="check-label"><input type="checkbox"> Sun</label>
+              <label class="check-label"><input type="checkbox"> Mon</label>
+              <label class="check-label"><input type="checkbox"> Tue</label>
+              <label class="check-label"><input type="checkbox"> Wed</label>
+              <label class="check-label"><input type="checkbox"> Thu</label>
+              <label class="check-label"><input type="checkbox" checked> Fri</label>
+              <label class="check-label"><input type="checkbox" checked> Sat</label>
+            </div>
+          </div>
+          <div style="border-top: 1px solid var(--border-soft); margin: 24px 0;"></div>
+          <div class="form-group">
+            <p class="text-small" style="margin-bottom:8px">Add Custom Holiday (e.g., Eid, National Day)</p>
+            <input type="text" class="input-field" placeholder="Holiday Title" style="margin-bottom:12px">
+            <div style="display:flex; gap:12px; align-items:center;">
+              <input type="date" class="input-field">
+              <span class="text-small">to</span>
+              <input type="date" class="input-field">
+            </div>
+            <button class="btn-secondary" style="margin-top:16px;">+ Add Holiday</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADMIN MODAL: MANUAL EDIT RECORD -->
+<div class="overlay" id="modal-edit">
+  <div class="modal">
+    <p class="text-title" style="margin-bottom: 8px;">Edit Attendance Record</p>
+    <p class="text-small" style="margin-bottom: 24px; line-height: 1.5;">Manual edits are permanently saved in the audit log for accountability.</p>
+
+    <div class="two-col" style="margin-bottom: 20px;">
+      <div>
+        <p class="text-small" style="margin-bottom:8px; font-weight:700;">Check-in</p>
+        <input type="time" class="input-field" value="09:58">
+      </div>
+      <div>
+        <p class="text-small" style="margin-bottom:8px; font-weight:700;">Check-out</p>
+        <input type="time" class="input-field" value="18:05">
+      </div>
+    </div>
+
+    <div class="form-group" style="max-width: 100%;">
+      <p class="text-small" style="margin-bottom:8px; font-weight:700;">Admin Note (Required)</p>
+      <textarea class="input-field" style="min-height: 80px; resize:none" placeholder="Reason for this manual edit..."></textarea>
+    </div>
+
+    <div style="display:flex; gap:12px; justify-content:flex-end; margin-top: 32px;">
+      <button class="btn-secondary" id="btn-cancel-edit">Cancel</button>
+      <button class="btn-primary" id="btn-save-edit">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL: RESET PASSWORD -->
+<div class="overlay" id="modal-reset-password">
+  <div class="modal">
+    <p class="text-title" style="margin-bottom: 8px;">Reset Password</p>
+    <p class="text-small" style="margin-bottom: 24px; line-height: 1.5;">Set a new password for this employee. They'll need it the next time they log in.</p>
+
+    <div class="form-group" style="max-width: 100%;">
+      <p class="text-small" style="margin-bottom:8px; font-weight:700;">New Password</p>
+      <input type="password" class="input-field" id="reset-password-input" placeholder="At least 6 characters">
+      <p class="field-error" id="reset-password-error">Password must be at least 6 characters.</p>
+    </div>
+
+    <div style="display:flex; gap:12px; justify-content:flex-end; margin-top: 24px;">
+      <button class="btn-secondary" id="btn-cancel-reset-password">Cancel</button>
+      <button class="btn-primary" id="btn-save-reset-password">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
