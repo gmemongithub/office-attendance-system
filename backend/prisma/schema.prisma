@@ -11,17 +11,29 @@ datasource db {
 // ADMIN
 // ============================================================
 model Admin {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  email     String   @unique
-  password  String   // bcrypt hash
+  email     String    @unique
+  password  String    // bcrypt hash
   avatarUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      AdminRole @default(ADMIN)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Auto-created on first login so an admin can also use the normal
+  // employee attendance flow (check-in/break/checkout).
+  employeeId     String?   @unique
+  linkedEmployee Employee? @relation(fields: [employeeId], references: [id])
 
   sessions  Session[]
   notices   Notice[]
   auditLogs AuditLog[]
+}
+
+enum AdminRole {
+  ADMIN
+  SUPER_ADMIN
 }
 
 // ============================================================
@@ -50,6 +62,7 @@ model Employee {
   attendanceEvents AttendanceEvent[]
   auditLogsAbout   AuditLog[]        @relation("AuditTargetEmployee")
   pushSubscription PushSubscription?
+  linkedAdmin      Admin?
 }
 
 // ============================================================

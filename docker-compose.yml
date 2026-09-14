@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
@@ -9,8 +7,6 @@ services:
       POSTGRES_USER: attendance_user
       POSTGRES_PASSWORD: attendance_pass
       POSTGRES_DB: attendance_db
-    ports:
-      - "5432:5432"
     volumes:
       - attendance_pgdata:/var/lib/postgresql/data
 
@@ -28,6 +24,33 @@ services:
     depends_on:
       - db
     command: sh -c "npx prisma migrate deploy && node server.js"
+    volumes:
+      - attendance_uploads:/app/uploads
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.track-api.rule=Host(`track.bexven.tech`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.track-api.entrypoints=websecure"
+      - "traefik.http.routers.track-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.track-api.priority=100"
+      - "traefik.http.services.track-api.loadbalancer.server.port=4000"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: attendance_frontend
+    restart: unless-stopped
+    ports:
+      - "8091:80"
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.track-web.rule=Host(`track.bexven.tech`)"
+      - "traefik.http.routers.track-web.entrypoints=websecure"
+      - "traefik.http.routers.track-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.track-web.priority=1"
+      - "traefik.http.services.track-web.loadbalancer.server.port=80"
 
 volumes:
   attendance_pgdata:
+  attendance_uploads:

@@ -15,7 +15,7 @@
 <!-- =======================================================
      LOGIN SCREEN (shown first; hides once logged in)
      ======================================================= -->
-<div class="login-app" id="login-app">
+<div class="login-app" id="login-app" style="display:none;">
   <div class="login-card">
     <div class="login-logo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -120,7 +120,7 @@
             <p class="text-small" id="status-sub" style="margin-top: 8px;">Tap check in to start your day</p>
           </div>
           <div class="timer-wrapper">
-            <svg width="120" height="120" viewBox="0 0 120 120">
+            <svg width="100%" height="100%" viewBox="0 0 120 120">
               <circle class="progress-bg" cx="60" cy="60" r="54"/>
               <circle class="progress-ring" id="progress-ring" cx="60" cy="60" r="54"/>
             </svg>
@@ -213,13 +213,19 @@
             </button>
             <input type="file" id="avatar-file-input" accept="image/*" style="display:none;">
           </div>
-          <p class="text-title">Emon Hasan</p>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <p class="text-title" id="profile-name-display">Emon Hasan</p>
+            <button class="icon-btn" id="btn-open-change-name" style="display:none; width:28px; height:28px;" title="Edit name">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>
+          </div>
           <p class="text-small" style="margin-top:4px;">Automation team</p>
         </div>
         <div class="list-row"><span class="text-small">Duty start time</span><span class="text-body">9:30 AM</span></div>
         <div class="list-row"><span class="text-small">Employee ID</span><span class="text-body">BX-014</span></div>
 
-        <button class="btn-secondary" id="btn-logout" style="width:100%; justify-content:center; margin-top:24px; border-color:var(--accent-error); color:var(--accent-error);">Log Out</button>
+        <button class="btn-secondary" id="btn-open-change-email" style="width:100%; justify-content:center; margin-top:24px;">Change Email</button>
+        <button class="btn-secondary" id="btn-logout" style="width:100%; justify-content:center; margin-top:12px; border-color:var(--accent-error); color:var(--accent-error);">Log Out</button>
       </div>
     </div>
 
@@ -369,8 +375,15 @@
           <p class="text-title" id="staff-count-title">Total 6 Employees</p>
           <p class="text-small">Manage accounts and individual settings</p>
         </div>
-        <button class="btn-primary" id="btn-add-employee">Add Employee</button>
+        <div style="display:flex; gap:12px;">
+          <button class="btn-secondary" id="btn-add-admin">Add Admin</button>
+          <button class="btn-primary" id="btn-add-employee">Add Employee</button>
+        </div>
       </div>
+      <p class="text-section" style="margin-top:8px;">Admins</p>
+      <div id="admin-list" style="margin-bottom:32px;"></div>
+
+      <p class="text-section">Employees</p>
       <div id="staff-list"></div>
     </div>
 
@@ -378,7 +391,7 @@
     <div class="admin-screen" id="admin-screen-staff-create">
       <button class="back-btn" id="btn-back-staff-create">Back to Staff List</button>
       <div class="timeline-box" style="max-width: 600px;">
-        <p class="text-section">Create New Account</p>
+        <p class="text-section" id="staff-create-title">Create New Account</p>
         <div class="form-group">
           <p class="text-small" style="margin-bottom:8px">Full Name</p>
           <input type="text" class="input-field" id="create-emp-name" placeholder="John Doe">
@@ -461,7 +474,7 @@
     <div class="admin-screen" id="admin-screen-reports-date-months">
       <button class="back-btn" id="btn-back-date-months">Back</button>
       <p class="text-section">Select Month</p>
-      <div id="report-date-months-list"></div>
+      <div id="report-date-months-list" class="grid-cards"></div>
     </div>
 
     <div class="admin-screen" id="admin-screen-reports-date-days">
@@ -473,7 +486,7 @@
     <div class="admin-screen" id="admin-screen-reports-date-employees">
       <button class="back-btn" id="btn-back-date-employees">Back to Days</button>
       <p class="text-section" id="date-employees-header">Day</p>
-      <div id="report-date-employees-list"></div>
+      <div id="report-date-employees-list" class="grid-cards"></div>
     </div>
 
     <div class="admin-screen" id="admin-screen-reports-months">
@@ -640,6 +653,44 @@
     <div style="display:flex; gap:12px; justify-content:flex-end; margin-top: 24px;">
       <button class="btn-secondary" id="btn-cancel-reset-password">Cancel</button>
       <button class="btn-primary" id="btn-save-reset-password">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE EMAIL MODAL -->
+<div class="overlay" id="modal-change-email">
+  <div class="modal">
+    <p class="text-title" style="margin-bottom: 8px;">Change Email</p>
+    <p class="text-small" style="margin-bottom: 24px; line-height: 1.5;">Enter your current password to confirm the change.</p>
+
+    <div class="form-group" style="max-width: 100%;">
+      <p class="text-small" style="margin-bottom:8px; font-weight:700;">New Email</p>
+      <input type="email" class="input-field" id="change-email-new" placeholder="you@company.com">
+    </div>
+    <div class="form-group" style="max-width: 100%;">
+      <p class="text-small" style="margin-bottom:8px; font-weight:700;">Current Password</p>
+      <input type="password" class="input-field" id="change-email-password" placeholder="••••••••">
+    </div>
+    <p class="field-error" id="change-email-error">Something went wrong.</p>
+
+    <div style="display:flex; gap:12px; justify-content:flex-end; margin-top: 24px;">
+      <button class="btn-secondary" id="btn-cancel-change-email">Cancel</button>
+      <button class="btn-primary" id="btn-save-change-email">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CHANGE NAME MODAL (admin only) -->
+<div class="overlay" id="modal-change-name">
+  <div class="modal">
+    <p class="text-title" style="margin-bottom: 8px;">Edit Your Name</p>
+    <div class="form-group" style="max-width: 100%;">
+      <input type="text" class="input-field" id="change-name-input" placeholder="Your name">
+    </div>
+    <p class="field-error" id="change-name-error">Name is required.</p>
+    <div style="display:flex; gap:12px; justify-content:flex-end; margin-top: 24px;">
+      <button class="btn-secondary" id="btn-cancel-change-name">Cancel</button>
+      <button class="btn-primary" id="btn-save-change-name">Save</button>
     </div>
   </div>
 </div>

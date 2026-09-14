@@ -1,6 +1,6 @@
 ﻿(function () {
 
-  const API_BASE = 'http://localhost:4000/api'; // BACKEND NOTE: change to your VPS URL after deploy
+  const API_BASE = 'https://track.bexven.tech/api'; // BACKEND NOTE: change to your VPS URL after deploy
 
   var icons = {
     enter: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>`,
@@ -22,7 +22,7 @@
     var token = getToken();
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
-    var res = await fetch(API_BASE + path, Object.assign({}, options, { headers: headers }));
+    var res = await fetch(API_BASE + path, Object.assign({ cache: 'no-store' }, options, { headers: headers }));
     var data = await res.json().catch(function(){ return {}; });
     if (!res.ok) {
       var err = new Error(data.error || 'Request failed');
@@ -44,10 +44,31 @@
   // ==========================================================
   var moonIcon = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
   var sunIcon = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+
+  // Theme preference persisted via cookie (1 year) so it survives across visits.
+  function setCookie(name, value, days){
+    var expires = new Date(Date.now() + days*24*60*60*1000).toUTCString();
+    document.cookie = name + '=' + value + '; expires=' + expires + '; path=/; SameSite=Lax';
+  }
+  function getCookie(name){
+    var match = document.cookie.match('(^|;\\s*)' + name + '=([^;]*)');
+    return match ? match[2] : null;
+  }
+
+  function applyTheme(isDark){
+    document.documentElement.classList.toggle('dark', isDark);
+    document.querySelectorAll('.moon-icon').forEach(function(icon){ icon.innerHTML = isDark ? sunIcon : moonIcon; });
+  }
+
+  // Apply saved theme immediately on load, before anything renders.
+  var savedTheme = getCookie('theme');
+  if (savedTheme === 'dark') applyTheme(true);
+
   document.querySelectorAll('.mode-switch').forEach(function(btn){
     btn.addEventListener('click', function () {
-      var isDark = document.documentElement.classList.toggle('dark');
-      document.querySelectorAll('.moon-icon').forEach(function(icon){ icon.innerHTML = isDark ? sunIcon : moonIcon; });
+      var isDark = !document.documentElement.classList.contains('dark');
+      applyTheme(isDark);
+      setCookie('theme', isDark ? 'dark' : 'light', 365);
     });
   });
 
@@ -77,15 +98,10 @@
   // screen (that was the source of the check-in crash).
   function showLoggedIn(){
     loginApp.style.display = 'none';
-    if (currentUser.type === 'ADMIN') {
-      document.body.classList.add('is-admin');
-      employeeApp.style.display = 'none';
-      adminApp.style.display = 'flex';
-    } else {
-      document.body.classList.remove('is-admin');
-      employeeApp.style.display = 'flex';
-      adminApp.style.display = 'none';
-    }
+    if (currentUser.type === 'ADMIN') document.body.classList.add('is-admin');
+    else document.body.classList.remove('is-admin');
+    employeeApp.style.display = 'flex';
+    adminApp.style.display = 'none';
   }
 
   async function tryRestoreSession(){
@@ -145,18 +161,125 @@
     });
   }
 
-  function afterLogin(){
-    if (currentUser.type === 'EMPLOYEE') {
-      refreshTodayStatus();
-      setupPushSubscription();
-    } else {
-      loadAdminDashboard();
+  // Uploads the selected file to the backend and updates the avatar
+  // element immediately with the returned permanent URL (persists across
+  // refresh/rebuild, unlike the old client-only FileReader preview).
+  function wireAvatarUpload(avatarElId, editBtnId, fileInputId){
+    var avatarEl = document.getElementById(avatarElId);
+    var editBtn = document.getElementById(editBtnId);
+    var fileInput = document.getElementById(fileInputId);
+    if (!avatarEl || !editBtn || !fileInput) return;
+
+    editBtn.addEventListener('click', function(){ fileInput.click(); });
+    fileInput.addEventListener('change', async function(e){
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) return;
+
+      var formData = new FormData();
+      formData.append('avatar', file);
+
+      try {
+        var token = getToken();
+        var res = await fetch(API_BASE + '/avatar', {
+          method: 'POST',
+          headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+          body: formData,
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+        applyAvatarUrl(avatarEl, data.avatarUrl);
+        if (currentUser) currentUser.avatarUrl = data.avatarUrl;
+      } catch (err) {
+        alert(err.message);
+      }
+      fileInput.value = '';
+    });
+  }
+
+  function applyAvatarUrl(avatarEl, avatarUrl){
+    avatarEl.style.backgroundImage = 'url(' + API_BASE.replace(/\/api$/, '') + avatarUrl + ')';
+    avatarEl.textContent = '';
+  }
+
+  // ---------- Change Name (admin only) ----------
+  var btnOpenChangeName = document.getElementById('btn-open-change-name');
+  var modalChangeName = document.getElementById('modal-change-name');
+  var changeNameInput = document.getElementById('change-name-input');
+  var changeNameError = document.getElementById('change-name-error');
+
+  btnOpenChangeName.addEventListener('click', function(){
+    changeNameInput.value = currentUser.name;
+    changeNameError.classList.remove('show');
+    modalChangeName.classList.add('open');
+  });
+  document.getElementById('btn-cancel-change-name').addEventListener('click', function(){
+    modalChangeName.classList.remove('open');
+  });
+  document.getElementById('btn-save-change-name').addEventListener('click', async function(){
+    var name = changeNameInput.value.trim();
+    if (!name) { changeNameError.classList.add('show'); return; }
+    try {
+      var res = await api('/auth/me/name', { method: 'PATCH', body: JSON.stringify({ name: name }) });
+      currentUser.name = res.name;
+      modalChangeName.classList.remove('open');
+      loadMyProfileScreen();
+      setDateLabel();
+    } catch (e) {
+      changeNameError.textContent = e.message;
+      changeNameError.classList.add('show');
     }
+  });
+
+  // ---------- Change Email ----------
+  var modalChangeEmail = document.getElementById('modal-change-email');
+  var changeEmailNew = document.getElementById('change-email-new');
+  var changeEmailPassword = document.getElementById('change-email-password');
+  var changeEmailError = document.getElementById('change-email-error');
+
+  document.getElementById('btn-open-change-email').addEventListener('click', function(){
+    changeEmailNew.value = ''; changeEmailPassword.value = '';
+    changeEmailError.classList.remove('show');
+    modalChangeEmail.classList.add('open');
+  });
+  document.getElementById('btn-cancel-change-email').addEventListener('click', function(){
+    modalChangeEmail.classList.remove('open');
+  });
+  document.getElementById('btn-save-change-email').addEventListener('click', async function(){
+    var newEmail = changeEmailNew.value.trim();
+    var currentPassword = changeEmailPassword.value.trim();
+    if (!newEmail || !currentPassword) {
+      changeEmailError.textContent = 'Both fields are required.';
+      changeEmailError.classList.add('show');
+      return;
+    }
+    try {
+      var res = await api('/auth/me/email', {
+        method: 'PATCH',
+        body: JSON.stringify({ newEmail: newEmail, currentPassword: currentPassword }),
+      });
+      currentUser.email = res.email;
+      modalChangeEmail.classList.remove('open');
+      loadMyProfileScreen();
+      alert('Email updated successfully.');
+    } catch (e) {
+      changeEmailError.textContent = e.message || 'Something went wrong.';
+      changeEmailError.classList.add('show');
+    }
+  });
+
+  wireAvatarUpload('profile-avatar', 'btn-edit-avatar', 'avatar-file-input');
+  wireAvatarUpload('admin-profile-avatar', 'btn-edit-admin-avatar', 'admin-avatar-file-input');
+
+  function afterLogin(){
+    refreshTodayStatus();
+    if (currentUser.type === 'EMPLOYEE') setupPushSubscription();
   }
 
   var btnOpenAdmin = document.getElementById('btn-open-admin');
   var btnBackToEmployee = document.getElementById('btn-back-to-employee');
-  if (btnOpenAdmin) btnOpenAdmin.addEventListener('click', function(){ employeeApp.style.display = 'none'; adminApp.style.display = 'flex'; });
+  if (btnOpenAdmin) btnOpenAdmin.addEventListener('click', function(){ employeeApp.style.display = 'none'; adminApp.style.display = 'flex'; loadAdminDashboard(); });
   if (btnBackToEmployee) btnBackToEmployee.addEventListener('click', function(){ adminApp.style.display = 'none'; employeeApp.style.display = 'flex'; });
 
   // ==========================================================
@@ -221,7 +344,10 @@
   function fmt(n){ return n < 10 ? '0' + n : '' + n; }
   function fmtTime(iso){
     var d = new Date(iso);
-    var h = d.getHours(), m = d.getMinutes();
+    // Backend encodes BD wall-clock digits using UTC getters (see
+    // dateUtils.js) — so we must read them back with getUTC*() here too,
+    // regardless of the browser/OS's own local timezone setting.
+    var h = d.getUTCHours(), m = d.getUTCMinutes();
     var ampm = h >= 12 ? 'PM' : 'AM';
     var h12 = h % 12; if (h12 === 0) h12 = 12;
     return h12 + ':' + fmt(m) + ' ' + ampm;
@@ -443,13 +569,16 @@
 
   async function loadMyProfileScreen(){
     var screen = document.getElementById('screen-profile');
-    screen.querySelector('.text-title').textContent = currentUser.name;
-    screen.querySelector('.avatar').textContent = currentUser.name.split(' ').map(function(n){return n[0];}).join('').slice(0,2).toUpperCase();
+    document.getElementById('profile-name-display').textContent = currentUser.name;
+    document.getElementById('btn-open-change-name').style.display = (currentUser.type === 'ADMIN') ? 'flex' : 'none';
+    var avatarEl = screen.querySelector('.avatar');
+    if (currentUser.avatarUrl) applyAvatarUrl(avatarEl, currentUser.avatarUrl);
+    else avatarEl.textContent = currentUser.name.split(' ').map(function(n){return n[0];}).join('').slice(0,2).toUpperCase();
     screen.querySelectorAll('.text-small')[0].textContent = currentUser.email;
     try {
       var res = await api('/employee/me');
       var rows = screen.querySelectorAll('.list-row');
-      rows[0].querySelector('.text-body').textContent = res.employee.dutyStartTimeOverride || 'Default (set by admin)';
+      rows[0].querySelector('.text-body').textContent = res.employee.effectiveDutyStartTime;
       rows[1].querySelector('.text-body').textContent = res.employee.id.slice(0, 8).toUpperCase();
     } catch (e) { console.error(e); }
   }
@@ -609,10 +738,13 @@
         else { counts.other++; }
 
         var initials = emp.name.split(' ').map(function(n){ return n[0]; }).join('').slice(0,2).toUpperCase();
+        var avatarHtml = emp.avatarUrl
+          ? `<div class="emp-avatar" style="background-image:url('${API_BASE.replace(/\/api$/, '')}${emp.avatarUrl}')"></div>`
+          : `<div class="emp-avatar">${initials}</div>`;
         var card = document.createElement('div');
         card.className = 'emp-card ' + stateClass;
         card.innerHTML = `
-          <div class="emp-header"><div class="emp-avatar">${initials}</div></div>
+          <div class="emp-header">${avatarHtml}</div>
           <p class="text-body">${emp.name}</p>
           <p class="emp-time">${formatDuration(emp.workedSeconds)}</p>
           <p class="text-small" style="font-weight:700">${stateLabel}</p>
@@ -629,7 +761,68 @@
   /* ---------- Staff & Accounts ---------- */
   var currentManagedEmployeeId = null;
 
+  var isSuperAdmin = false;
+
+  async function loadAdminList(){
+    var listEl = document.getElementById('admin-list');
+    listEl.innerHTML = '';
+    try {
+      var res = await api('/admin/admins');
+      isSuperAdmin = (currentUser.role === 'SUPER_ADMIN');
+      res.admins.forEach(function(adm){
+        var initials = adm.name.split(' ').map(function(n){ return n[0]; }).join('').slice(0,2).toUpperCase();
+        var avatarStyle = adm.avatarUrl ? `background-image:url('${API_BASE.replace(/\/api$/, '')}${adm.avatarUrl}')` : '';
+        var roleLabel = adm.role === 'SUPER_ADMIN' ? ' (Master Admin)' : '';
+        var statusLabel = adm.active ? '' : ' — Deactivated';
+        var manageBtn = (isSuperAdmin && adm.role !== 'SUPER_ADMIN')
+          ? `<button class="btn-secondary manage-admin-btn" style="margin:0; padding:8px 16px" data-admin-id="${adm.id}" data-admin-active="${adm.active}">Manage</button>`
+          : '';
+        var row = document.createElement('div');
+        row.className = 'list-row';
+        row.style.padding = '16px 24px';
+        row.innerHTML = `
+          <div style="display:flex; align-items:center; gap:16px">
+            <div class="emp-avatar" style="background:var(--surface-muted); color:var(--text-main); width:48px; height:48px; border: 1px solid var(--border-soft); ${avatarStyle}">${adm.avatarUrl ? '' : initials}</div>
+            <div><p class="text-body" style="font-weight:700">${adm.name}${roleLabel}${statusLabel}</p><p class="text-small">${adm.email}</p></div>
+          </div>
+          ${manageBtn}
+        `;
+        listEl.appendChild(row);
+      });
+
+      listEl.querySelectorAll('.manage-admin-btn').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+          e.stopPropagation();
+          openManageAdminModal(btn.dataset.adminId, btn.dataset.adminActive === 'true');
+        });
+      });
+    } catch (e) { console.error(e); }
+  }
+
+  async function openManageAdminModal(adminId, isActive){
+    var action = isActive ? 'deactivate' : 'reactivate';
+    if (!isActive) {
+      if (confirm('Reactivate this admin account?')) {
+        try { await api('/admin/admins/' + adminId + '/reactivate', { method: 'POST' }); loadAdminList(); }
+        catch (e) { alert(e.message); }
+      }
+      return;
+    }
+    var choice = prompt('Type "deactivate" to deactivate this admin, or type a new password (6+ chars) to reset it instead. Leave blank to cancel.');
+    if (!choice) return;
+    try {
+      if (choice.toLowerCase() === 'deactivate') {
+        await api('/admin/admins/' + adminId + '/deactivate', { method: 'POST' });
+      } else {
+        await api('/admin/admins/' + adminId + '/reset-password', { method: 'POST', body: JSON.stringify({ newPassword: choice }) });
+        alert('Password reset successfully.');
+      }
+      loadAdminList();
+    } catch (e) { alert(e.message); }
+  }
+
   async function loadStaffList(){
+    loadAdminList();
     var listEl = document.getElementById('staff-list');
     listEl.innerHTML = '';
     try {
@@ -637,12 +830,13 @@
       document.querySelector('#admin-screen-staff .text-title').textContent = 'Total ' + res.employees.length + ' Employees';
       res.employees.forEach(function(emp){
         var initials = emp.name.split(' ').map(function(n){ return n[0]; }).join('').slice(0,2).toUpperCase();
+        var avatarStyle = emp.avatarUrl ? `background-image:url('${API_BASE.replace(/\/api$/, '')}${emp.avatarUrl}')` : '';
         var row = document.createElement('div');
         row.className = 'list-row';
         row.style.padding = '16px 24px';
         row.innerHTML = `
           <div style="display:flex; align-items:center; gap:16px">
-            <div class="emp-avatar" style="background:var(--surface-muted); color:var(--text-main); width:48px; height:48px; border: 1px solid var(--border-soft);">${initials}</div>
+            <div class="emp-avatar" style="background:var(--surface-muted); color:var(--text-main); width:48px; height:48px; border: 1px solid var(--border-soft); ${avatarStyle}">${emp.avatarUrl ? '' : initials}</div>
             <div><p class="text-body" style="font-weight:700">${emp.name}${emp.active ? '' : ' (Deactivated)'}</p><p class="text-small">${emp.email}</p></div>
           </div>
           <button class="btn-secondary" style="margin:0; padding:8px 16px">Manage</button>
@@ -663,13 +857,24 @@
       screen.querySelectorAll('.text-small')[0].textContent = emp.email;
       screen.querySelector('#admin-profile-avatar').textContent = emp.name.split(' ').map(function(n){return n[0];}).join('').slice(0,2).toUpperCase();
       screen.querySelector('input.input-field[type="text"]').value = emp.name;
-      screen.querySelector('input[type="time"]').value = emp.dutyStartTimeOverride || '';
+      screen.querySelector('input[type="time"]').value = emp.effectiveDutyStartTime || '';
       document.getElementById('btn-deactivate-account').textContent = emp.active ? 'Deactivate Account' : 'Reactivate Account';
       showAdminScreen('staff-manage');
     } catch (e) { alert(e.message); }
   }
 
-  document.getElementById('btn-add-employee').addEventListener('click', function(){ showAdminScreen('staff-create'); });
+  var createAccountRole = 'employee';
+
+document.getElementById('btn-add-employee').addEventListener('click', function(){
+  createAccountRole = 'employee';
+  document.getElementById('staff-create-title').textContent = 'Create New Employee Account';
+  showAdminScreen('staff-create');
+});
+document.getElementById('btn-add-admin').addEventListener('click', function(){
+  createAccountRole = 'admin';
+  document.getElementById('staff-create-title').textContent = 'Create New Admin Account';
+  showAdminScreen('staff-create');
+});
   document.getElementById('btn-back-staff-create').addEventListener('click', function(){ showAdminScreen('staff'); });
   document.getElementById('btn-back-staff-manage').addEventListener('click', function(){ showAdminScreen('staff'); loadStaffList(); });
 
@@ -678,9 +883,12 @@
     var name = inputs[0].value.trim(), email = inputs[1].value.trim(), password = inputs[2].value.trim();
     if (!name || !email || !password) { alert('All fields are required'); return; }
     try {
-      await api('/admin/employees', { method: 'POST', body: JSON.stringify({ name: name, email: email, password: password }) });
+      var endpoint = (createAccountRole === 'admin') ? '/admin/admins' : '/admin/employees';
+      await api(endpoint, { method: 'POST', body: JSON.stringify({ name: name, email: email, password: password }) });
       inputs[0].value = ''; inputs[1].value = ''; inputs[2].value = '';
-      showAdminScreen('staff'); loadStaffList();
+      showAdminScreen('staff');
+      loadStaffList();
+      if (createAccountRole === 'admin') alert('Admin account created successfully.');
     } catch (e) { alert(e.message); }
   });
 
@@ -739,17 +947,18 @@
     var listEl = document.getElementById('report-emp-list');
     listEl.innerHTML = '';
     try {
-      var res = await api('/admin/employees');
-      var employees = res.employees;
+      var res = await api('/reports/subjects');
+      var employees = res.subjects;
       if (query) employees = employees.filter(function(e){ return e.name.toLowerCase().indexOf(query.toLowerCase()) !== -1; });
       if (employees.length === 0) { listEl.innerHTML = '<p class="text-small" style="text-align:center; padding:24px;">No employee found.</p>'; return; }
       employees.forEach(function(emp){
         var initials = emp.name.split(' ').map(function(n){ return n[0]; }).join('').slice(0,2).toUpperCase();
+        var avatarStyle = emp.avatarUrl ? `background-image:url('${API_BASE.replace(/\/api$/, '')}${emp.avatarUrl}')` : '';
         var row = document.createElement('div');
         row.className = 'list-row';
         row.innerHTML = `
           <div style="display:flex; align-items:center; gap:16px">
-            <div class="emp-avatar" style="background:var(--surface-muted); color:var(--text-main); width:40px; height:40px; font-size:14px; border: 1px solid var(--border-soft);">${initials}</div>
+            <div class="emp-avatar" style="background:var(--surface-muted); color:var(--text-main); width:40px; height:40px; font-size:14px; border: 1px solid var(--border-soft); ${avatarStyle}">${emp.avatarUrl ? '' : initials}</div>
             <p class="text-body">${emp.name}</p>
           </div>
           ${icons.chevron}
@@ -872,12 +1081,18 @@
     try {
       var res = await api('/reports/months');
       if (res.months.length === 0) listEl.innerHTML = '<p class="text-small">No history yet.</p>';
-      res.months.forEach(function(m){
-        var row = document.createElement('div');
-        row.className = 'list-row';
-        row.innerHTML = `<p class="text-body">${m.label}</p>${icons.chevron}`;
-        row.addEventListener('click', function(){ loadDateDays(m); });
-        listEl.appendChild(row);
+      var monthColors = ['state-waiting', 'state-active', 'state-break', 'state-done'];
+      res.months.forEach(function(m, idx){
+        var card = document.createElement('div');
+        card.className = 'emp-card ' + monthColors[idx % monthColors.length];
+        card.style.cursor = 'pointer';
+        card.innerHTML = `
+          <div class="emp-header"><div class="icon-wrap" style="width:48px; height:48px; background:rgba(255,255,255,0.5);">${icons.calendar}</div></div>
+          <p class="text-body" style="font-weight:700; font-size:18px; margin-top:8px;">${m.label}</p>
+          <p class="text-small" style="margin-top:8px;">Tap to view days</p>
+        `;
+        card.addEventListener('click', function(){ loadDateDays(m); });
+        listEl.appendChild(card);
       });
       showAdminScreen('reports-date-months');
     } catch (e) { console.error(e); }
@@ -888,7 +1103,7 @@
     var listEl = document.getElementById('report-date-days-list');
     listEl.innerHTML = '';
     var today = new Date();
-    var isCurrentMonth = (month.year === today.getFullYear() && month.month === today.getMonth() + 1);
+    var isCurrentMonth = (month.year === today.getUTCFullYear() && month.month === today.getUTCMonth() + 1);
     var lastDay = isCurrentMonth ? today.getDate() : new Date(Date.UTC(month.year, month.month, 0)).getUTCDate();
     var weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     for (var d = 1; d <= lastDay; d++){
@@ -914,19 +1129,34 @@
       if (res.isHoliday) { listEl.innerHTML = '<p class="text-small">This is a holiday.</p>'; showAdminScreen('reports-date-employees'); return; }
       res.employees.forEach(function(emp){
         var initials = emp.name.split(' ').map(function(n){ return n[0]; }).join('').slice(0,2).toUpperCase();
+        var avatarStyle = emp.avatarUrl ? `background-image:url('${API_BASE.replace(/\/api$/, '')}${emp.avatarUrl}')` : '';
         var flagged = emp.flags && emp.flags.length > 0;
+        var hasForgot = emp.flags && emp.flags.indexOf('Forgot to check out') !== -1;
+        var hasLunchOverrun = emp.flags && emp.flags.indexOf('Lunch overrun') !== -1;
         var sub = flagged ? emp.flags.join(' + ') : (emp.hasData ? formatDuration(emp.workedSeconds) + ' worked' : 'No data');
-        var row = document.createElement('div');
-        row.className = 'list-row' + (flagged ? ' flag' : '');
-        row.innerHTML = `
-          <div style="display:flex; align-items:center; gap:16px">
-            <div class="emp-avatar" style="background:var(--surface-muted); color:var(--text-main); width:40px; height:40px; font-size:14px; border: 1px solid var(--border-soft);">${initials}</div>
-            <div><p class="text-body">${emp.name}</p><p class="text-small">${sub}</p></div>
+        var warning = flagged ? `<div class="overrun-badge">${icons.alert || ''} Flagged</div>` : '';
+
+        // Same color language as the Live Dashboard: absent -> waiting (blue),
+        // completed day with no issues -> done (purple), lunch-overrun -> break
+        // (orange), forgot-to-checkout -> the strongest red flag.
+        var stateClass = 'state-waiting';
+        if (hasForgot) stateClass = 'state-break-overrun';
+        else if (hasLunchOverrun) stateClass = 'state-break';
+        else if (emp.hasData) stateClass = 'state-done';
+
+        var card = document.createElement('div');
+        card.className = 'emp-card ' + stateClass;
+        card.style.cursor = 'pointer';
+        card.innerHTML = `
+          <div class="emp-header">
+            <div class="emp-avatar" style="${avatarStyle}">${emp.avatarUrl ? '' : initials}</div>
+            ${warning}
           </div>
-          ${icons.chevron}
+          <p class="text-body" style="font-weight:700;">${emp.name}</p>
+          <p class="text-small" style="margin-top:8px;">${sub}</p>
         `;
-        row.addEventListener('click', function(){ openReportDayDetail({ id: emp.employeeId, name: emp.name }, month, day, 'reports-date-employees'); });
-        listEl.appendChild(row);
+        card.addEventListener('click', function(){ openReportDayDetail({ id: emp.employeeId, name: emp.name }, month, day, 'reports-date-employees'); });
+        listEl.appendChild(card);
       });
       showAdminScreen('reports-date-employees');
     } catch (e) { console.error(e); }

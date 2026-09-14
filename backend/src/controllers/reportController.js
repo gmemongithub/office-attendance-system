@@ -46,7 +46,7 @@ async function listDays(req, res, next) {
     const month = parseInt(req.params.month, 10);
 
     const today = nowBD();
-    const isCurrentMonth = (year === today.getFullYear() && month === today.getMonth() + 1);
+    const isCurrentMonth = (year === today.getUTCFullYear() && month === today.getUTCMonth() + 1);
     const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
     const daysInMonth = isCurrentMonth ? today.getDate() : lastDayOfMonth;
 
@@ -97,7 +97,9 @@ async function dateSummary(req, res, next) {
     const workDate = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
     const isHol = await holidayController.isHoliday(workDate);
 
-    const employees = await prisma.employee.findMany({ where: { active: true } });
+    const admins = await prisma.admin.findMany({ select: { employeeId: true } });
+    const adminLinkedIds = admins.map(a => a.employeeId).filter(Boolean);
+    const employees = await prisma.employee.findMany({ where: { active: true, id: { notIn: adminLinkedIds } } });
     const results = [];
     for (const emp of employees) {
       const events = await prisma.attendanceEvent.findMany({ where: { employeeId: emp.id, workDate }, orderBy: { serverTimestamp: 'asc' } });
@@ -150,4 +152,28 @@ function sumWorkedSeconds(events) {
   return Math.floor(workedMs / 1000);
 }
 
-module.exports = { listMonths, listAllMonths, listDays, dayDetail, dateSummary, editEvent };
+// GET /api/reports/subjects — combined list of everyone reportable
+// (employees + admins, using each admin's linked-employee id). Used by
+// the Reports & History "By Employee" screen so admins' own history is
+// browsable too, without exposing admins as manageable "staff".
+async function listReportSubjects(req, res, next) {
+  try {
+    const prisma = require('../config/db');
+    const admins = await prisma.admin.findMany({ select: { id: true, name: true, employeeId: true, avatarUrl: true } });
+    const adminLinkedIds = admins.map(a => a.employeeId).filter(Boolean);
+
+    const employees = await prisma.employee.findMany({
+      where: { id: { notIn: adminLinkedIds } },
+      select: { id: true, name: true, avatarUrl: true, active: true },
+      orderBy: [{ active: 'desc' }, { name: 'asc' }],
+    });
+
+    const adminSubjects = admins
+      .filter(a => a.employeeId)
+      .map(a => ({ id: a.employeeId, name: a.name + ' (Admin)', avatarUrl: a.avatarUrl, active: true, isAdmin: true }));
+
+    res.json({ subjects: [...adminSubjects, ...employees] });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listMonths, listAllMonths, listDays, dayDetail, dateSummary, editEvent, listReportSubjects };

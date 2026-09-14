@@ -9,6 +9,8 @@ const employeeRoutes = require('./routes/employee.routes');
 const holidayRoutes = require('./routes/holiday.routes');
 const noticeRoutes = require('./routes/notice.routes');
 const reportRoutes = require('./routes/report.routes');
+const avatarRoutes = require('./routes/avatar.routes');
+const path = require('path');
 
 const app = express();
 
@@ -25,6 +27,8 @@ app.use('/api/employee', employeeRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/avatar', avatarRoutes);
+app.use('/api/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Centralized error handler — every controller should call next(err)
 // on unexpected failures rather than sending its own 500.

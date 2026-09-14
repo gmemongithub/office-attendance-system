@@ -17,7 +17,7 @@ async function checkDutyReminders() {
   const globalDutyTime = settings?.defaultDutyStartTime ?? '09:30';
 
   const now = nowBD();
-  const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const currentHHMM = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
 
   const employees = await prisma.employee.findMany({ where: { active: true } });
 

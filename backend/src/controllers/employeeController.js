@@ -27,7 +27,9 @@ async function myProfile(req, res, next) {
       where: { id: req.user.id },
       select: { id: true, name: true, email: true, avatarUrl: true, dutyStartTimeOverride: true },
     });
-    res.json({ employee });
+    const settings = await prisma.globalSettings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+    const effectiveDutyStartTime = employee.dutyStartTimeOverride || settings.defaultDutyStartTime;
+    res.json({ employee: Object.assign({}, employee, { effectiveDutyStartTime }) });
   } catch (err) { next(err); }
 }
 

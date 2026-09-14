@@ -2,9 +2,7 @@ const express = require('express');
 const router = express.Router();
 const attendanceController = require('../controllers/attendanceController');
 const authMiddleware = require('../middleware/authMiddleware');
-const employeeOnly = require('../middleware/employeeOnly');
-
-router.use(authMiddleware, employeeOnly);
+router.use(authMiddleware);
 
 router.get('/today', attendanceController.today);
 router.post('/check-in', attendanceController.checkIn);

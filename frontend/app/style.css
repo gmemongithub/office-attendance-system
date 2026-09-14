@@ -43,7 +43,7 @@ body {
 
 p, span, div { margin: 0; }
 .text-title { font-size: 20px; font-weight: 700; }
-.text-timer { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; z-index: 2; position: relative; }
+.text-timer { font-size: clamp(26px, 5vw, 28px); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.5px; z-index: 2; position: relative; }
 .text-section { font-size: 14px; font-weight: 700; opacity: 0.8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
 .text-body { font-size: 14px; font-weight: 500; }
 .text-small { font-size: 12px; font-weight: 400; color: var(--text-muted); }
@@ -139,7 +139,7 @@ body.is-admin .admin-nav-item { display: flex; }
 .state-done { background: #e9e7fd; }
 
 .timer-wrapper {
-  position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; margin: 16px 0;
+  position: relative; width: clamp(150px, 30vw, 150px); height: clamp(150px, 30vw, 150px); display: flex; align-items: center; justify-content: center; margin: 16px 0;
 }
 .timer-wrapper svg { position: absolute; top: 0; left: 0; transform: rotate(-90deg); }
 .progress-bg { stroke: rgba(31, 28, 46, 0.1); stroke-width: 6; fill: none; }
